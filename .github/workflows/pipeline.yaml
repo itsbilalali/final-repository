@@ -1,0 +1,46 @@
+name: Cherry-Pick to Release
+
+on:
+  pull_request:
+    types:
+      - labeled
+permissions:
+  contents: write
+
+jobs:
+  cherry-pick:
+    if: github.event.label.name == 'tested'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev branch
+        uses: actions/checkout@v3
+        with:
+          ref: dev
+          fetch-depth: 0  # Fetch all history so we can cherry-pick
+
+      - name: Configure Git
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Cherry-Pick PR Commits
+        run: |
+          # Get the PR number
+          PR_NUMBER=$(echo ${{ github.event.pull_request.number }})
+          
+          # Fetch the PR commits
+          git fetch origin pull/$PR_NUMBER/head
+
+          # Cherry-pick the commits onto the Release branch
+          git checkout main
+          git cherry-pick FETCH_HEAD
+
+          # Push the changes to the Release branch
+          git push origin main
+
+      - name: Comment on the PR
+        run: |
+          PR_URL=${{ github.event.pull_request.html_url }}
+          echo "Cherry-picked the commits from PR $PR_URL to the main branch" 
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
